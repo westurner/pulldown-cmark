@@ -587,12 +587,21 @@ impl<'a, 'b> FirstPass<'a, 'b> {
             let cell_ix = self.tree.append(Item {
                 start: start_ix,
                 end: ix,
-                body: ItemBody::TableCell,
+                body: ItemBody::TableCell {
+                    colspan: 1,
+                    rowspan: 1,
+                },
             });
             self.tree.push();
             let (next_ix, _brk) = self.parse_line(ix, None, TableParseMode::Active);
 
-            self.tree[cell_ix].item.end = next_ix;
+            let (cell_end, colspan, rowspan) = self.parse_table_cell_span(
+                &self.text[ix..next_ix],
+                self.options.contains(Options::ENABLE_TABLE_SPANS),
+            );
+            self.tree[cell_ix].item.end = ix + cell_end;
+            self.tree[cell_ix].item.body = ItemBody::TableCell { colspan, rowspan };
+            self.trim_table_cell_children(cell_ix, ix + cell_end);
             self.tree.pop();
 
             ix = next_ix;
@@ -620,7 +629,10 @@ impl<'a, 'b> FirstPass<'a, 'b> {
             self.tree.append(Item {
                 start: ix,
                 end: ix,
-                body: ItemBody::TableCell,
+                body: ItemBody::TableCell {
+                    colspan: 1,
+                    rowspan: 1,
+                },
             });
         }
 
@@ -663,6 +675,59 @@ impl<'a, 'b> FirstPass<'a, 'b> {
 
         let (ix, row_ix) = self.parse_table_row_inner(ix, row_cells, missing_empty_cells)?;
         Some((ix, row_ix))
+    }
+
+    /// Parse the opt-in trailing span attribute block from one table cell.
+    ///
+    /// The accepted form is `{colspan=N rowspan=M}` with either attribute
+    /// optional. Values are positive integers and the returned end offset
+    /// excludes the attribute block from the cell's source range.
+    fn parse_table_cell_span(&self, text: &str, enabled: bool) -> (usize, u16, u16) {
+        if !enabled {
+            return (text.len(), 1, 1);
+        }
+        let trimmed_end = text.trim_end_matches([' ', '\t', '\r', '\n']);
+        let Some(open) = trimmed_end.rfind(" {") else {
+            return (text.len(), 1, 1);
+        };
+        let attrs = &trimmed_end[open + 2..];
+        if !attrs.ends_with('}') {
+            return (text.len(), 1, 1);
+        }
+        let mut colspan = 1;
+        let mut rowspan = 1;
+        let mut found = false;
+        for part in attrs[..attrs.len() - 1].split_ascii_whitespace() {
+            let Some((name, value)) = part.split_once('=') else {
+                return (text.len(), 1, 1);
+            };
+            let Ok(value) = value.parse::<u16>() else {
+                return (text.len(), 1, 1);
+            };
+            match name {
+                "colspan" => colspan = value,
+                "rowspan" if value > 0 => rowspan = value,
+                _ => return (text.len(), 1, 1),
+            }
+            found = true;
+        }
+        if found {
+            (open, colspan, rowspan)
+        } else {
+            (text.len(), 1, 1)
+        }
+    }
+
+    fn trim_table_cell_children(&mut self, cell: TreeIndex, end: usize) {
+        let mut child = self.tree[cell].child;
+        while let Some(index) = child {
+            self.tree[index].item.end = self.tree[index].item.end.min(end);
+            let nested = self.tree[index].child;
+            if let Some(nested) = nested {
+                self.trim_table_cell_children(nested, end);
+            }
+            child = self.tree[index].next;
+        }
     }
 
     /// Returns offset of line start after paragraph.

@@ -259,7 +259,24 @@ pub enum Tag<'a> {
     /// Only parsed and emitted with [`Options::ENABLE_TABLES`].
     TableRow,
     /// Only parsed and emitted with [`Options::ENABLE_TABLES`].
-    TableCell,
+    TableCell {
+        /// Number of columns covered by this cell.
+        ///
+        /// The HTML conformance range is 1..=1000. This extension also
+        /// preserves explicit `0` as a non-conforming input value. `u16` is used for the
+        /// shared span representation because `rowspan` has the wider HTML
+        /// range; it also accommodates browser extensions that accept values
+        /// such as 8192. This field width is not itself the HTML validator.
+        colspan: u16,
+        /// Number of rows covered by this cell.
+        ///
+        /// HTML's conforming range is 0..=65534, with zero meaning that the
+        /// cell extends to the end of its row group. The current Markdown
+        /// extension accepts positive explicit row spans, so `1..=65535` is
+        /// the parser representation and downstream serializers remain
+        /// responsible for conformance policy.
+        rowspan: u16,
+    },
 
     // span-level tags
     /// [Emphasis](https://spec.commonmark.org/0.31.2/#emphasis-and-strong-emphasis).
@@ -330,7 +347,7 @@ impl<'a> Tag<'a> {
             Tag::Table(_) => TagEnd::Table,
             Tag::TableHead => TagEnd::TableHead,
             Tag::TableRow => TagEnd::TableRow,
-            Tag::TableCell => TagEnd::TableCell,
+            Tag::TableCell { .. } => TagEnd::TableCell,
             Tag::Subscript => TagEnd::Subscript,
             Tag::Superscript => TagEnd::Superscript,
             Tag::Emphasis => TagEnd::Emphasis,
@@ -372,7 +389,7 @@ impl<'a> Tag<'a> {
             Tag::Table(v) => Tag::Table(v),
             Tag::TableHead => Tag::TableHead,
             Tag::TableRow => Tag::TableRow,
-            Tag::TableCell => Tag::TableCell,
+            Tag::TableCell { colspan, rowspan } => Tag::TableCell { colspan, rowspan },
             Tag::Emphasis => Tag::Emphasis,
             Tag::Strong => Tag::Strong,
             Tag::Strikethrough => Tag::Strikethrough,
@@ -768,6 +785,9 @@ bitflags::bitflags! {
         const ENABLE_WIKILINKS = 1 << 15;
         /// Colon-delimited Container Extension Blocks.
         const ENABLE_CONTAINER_EXTENSIONS = 1 << 16;
+        /// Enables `{colspan=N rowspan=M}` attributes at the end of table
+        /// cells, exposing the resulting geometry on `Tag::TableCell`.
+        const ENABLE_TABLE_SPANS = 1 << 17;
     }
 }
 

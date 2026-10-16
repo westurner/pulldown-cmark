@@ -228,7 +228,7 @@ where
                 self.table_cell_index = 0;
                 self.write("<tr>")
             }
-            Tag::TableCell => {
+            Tag::TableCell { colspan, rowspan } => {
                 match self.table_state {
                     TableState::Head => {
                         self.write("<th")?;
@@ -236,6 +236,12 @@ where
                     TableState::Body => {
                         self.write("<td")?;
                     }
+                }
+                if colspan != 1 {
+                    self.write(&format!(" colspan=\"{colspan}\""))?;
+                }
+                if rowspan > 1 {
+                    self.write(&format!(" rowspan=\"{rowspan}\""))?;
                 }
                 match self.table_alignments.get(self.table_cell_index) {
                     Some(&Alignment::Left) => self.write(" style=\"text-align: left\">"),

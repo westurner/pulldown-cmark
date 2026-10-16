@@ -23,6 +23,32 @@ Further, it optionally supports parsing footnotes,
 [Github flavored task lists](https://github.github.com/gfm/#task-list-items-extension-) and
 [strikethrough](https://github.github.com/gfm/#strikethrough-extension-).
 
+The vendored extension also supports opt-in table cell spans. Add
+`Options::ENABLE_TABLE_SPANS` alongside `Options::ENABLE_TABLES`, then write
+trailing cell attributes such as `{colspan=2 rowspan=2}`. The parser exposes
+the values as `Tag::TableCell { colspan, rowspan }` and the HTML renderer
+emits matching `colspan` and `rowspan` attributes. Without the option,
+existing GFM table behavior is unchanged.
+
+The extension also preserves `colspan=0` as an explicit non-conforming value
+and emits it as `colspan="0"`. This is a pass-through compatibility behavior,
+not the HTML `rowspan=0` meaning of extending through the remaining row group;
+consumers that require conforming HTML should reject or normalize it.
+
+The event fields use `u16` because the shared representation must cover
+`rowspan`: the HTML standard permits values through 65,534 there, while
+`colspan` is limited to 1,000. The width also accommodates browser behavior
+that accepts larger column spans, such as 8,192. The integer width is only a
+storage choice; HTML-range validation and any clamping policy belong to the
+consumer/serializer.
+
+The syntax is intentionally narrower than the related
+[`markdown-it-attrs`](https://www.npmjs.com/package/markdown-it-attrs) plugin:
+only the two structural span keys are accepted. `id`, `class`, `style`, data
+attributes, event-handler attributes, and arbitrary HTML attributes are not
+part of this extension. This prevents Markdown table metadata from becoming
+an uncontrolled DOM hook that could collide with page JavaScript behavior.
+
 Rustc 1.71.1 or newer is required to build the crate.
 
 ## Example

@@ -132,7 +132,10 @@ pub(crate) enum ItemBody {
     Table(AlignmentIndex),
     TableHead,
     TableRow,
-    TableCell,
+    TableCell {
+        colspan: u16,
+        rowspan: u16,
+    },
 }
 
 impl ItemBody {
@@ -1561,7 +1564,7 @@ impl Tree<Item> {
         fn might_be_in_table(item: &Item) -> bool {
             item.body.is_inline()
                 || matches!(item.body, |ItemBody::TableHead| ItemBody::TableRow
-                    | ItemBody::TableCell)
+                    | ItemBody::TableCell { .. })
         }
         for &ix in self.walk_spine().rev() {
             if matches!(self[ix].item.body, ItemBody::Table(_)) {
@@ -2326,7 +2329,7 @@ fn body_to_tag_end(body: &ItemBody) -> TagEnd {
         }
         ItemBody::ListItem(_) => TagEnd::Item,
         ItemBody::TableHead => TagEnd::TableHead,
-        ItemBody::TableCell => TagEnd::TableCell,
+        ItemBody::TableCell { .. } => TagEnd::TableCell,
         ItemBody::TableRow => TagEnd::TableRow,
         ItemBody::Table(..) => TagEnd::Table,
         ItemBody::FootnoteDefinition(..) => TagEnd::FootnoteDefinition,
@@ -2409,7 +2412,7 @@ fn item_to_event<'a>(item: Item, text: &'a str, allocs: &mut Allocations<'a>) ->
         }
         ItemBody::ListItem(_) => Tag::Item,
         ItemBody::TableHead => Tag::TableHead,
-        ItemBody::TableCell => Tag::TableCell,
+        ItemBody::TableCell { colspan, rowspan } => Tag::TableCell { colspan, rowspan },
         ItemBody::TableRow => Tag::TableRow,
         ItemBody::Table(alignment_ix) => Tag::Table(allocs.take_alignment(alignment_ix)),
         ItemBody::FootnoteDefinition(cow_ix) => Tag::FootnoteDefinition(allocs.take_cow(cow_ix)),
@@ -2657,7 +2660,7 @@ mod test {
         let event_offset = parser_with_extensions(markdown)
             .into_offset_iter()
             .filter_map(|(ev, span)| match ev {
-                Event::Start(Tag::TableCell) => Some(span),
+                Event::Start(Tag::TableCell { .. }) => Some(span),
                 _ => None,
             })
             .nth(4)

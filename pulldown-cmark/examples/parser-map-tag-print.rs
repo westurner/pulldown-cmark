@@ -100,7 +100,9 @@ fn main() {
                 ),
                 Tag::TableHead => println!("TableHead (contains TableRow tags"),
                 Tag::TableRow => println!("TableRow (contains TableCell tags)"),
-                Tag::TableCell => println!("TableCell (contains inline tags)"),
+                Tag::TableCell { colspan, rowspan } => {
+                    println!("TableCell colspan={colspan} rowspan={rowspan} (contains inline tags)")
+                }
                 Tag::FootnoteDefinition(label) => println!("FootnoteDefinition label: {}", label),
                 Tag::MetadataBlock(kind) => println!("MetadataBlock: {:?}", kind),
             },

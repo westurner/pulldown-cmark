@@ -55,7 +55,7 @@ pub enum Tag<'a> {
     Table(Vec<Alignment>),
     TableHead,
     TableRow,
-    TableCell,
+    TableCell { colspan: u16, rowspan: u16 },
 }
 
 // In parse.rs
@@ -64,9 +64,22 @@ pub(crate) enum ItemBody {
     Table(AlignmentIndex),
     TableHead,
     TableRow, 
-    TableCell,
+    TableCell { colspan: u16, rowspan: u16 },
 }
 ```
+
+Table spans are opt-in through `Options::ENABLE_TABLE_SPANS`. The parser
+recognizes a trailing `{colspan=N rowspan=M}` attribute block on a table cell,
+defaults omitted values to `1`, and leaves the attribute text out of the cell's
+source range. Consumers receive the geometry on `Tag::TableCell`; the built-in
+HTML writer maps it to `colspan` and `rowspan` attributes. Without the option,
+the existing GFM table stream remains unchanged.
+
+This is deliberately not a general attribute-block extension. The syntax is
+related to [`markdown-it-attrs`](https://www.npmjs.com/package/markdown-it-attrs),
+but accepting its full `id`/`class`/arbitrary-attribute surface would let
+untrusted Markdown preempt selectors, IDs, or JavaScript hooks in the output
+page. Keep the table-span grammar structural-only: `colspan` and `rowspan`.
 
 Follow existing patterns for naming and make sure to implement all the necessary traits (`Debug`, `Clone`, etc.).
 
